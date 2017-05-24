@@ -41,9 +41,7 @@ def __initialize_meta_info__():
   """
     fn = fetch()
     rar = rarfile.RarFile(fn)
-    dirpath = os.path.dirname(fn)
-    rar.extractall(path=dirpath)
-    return dirpath
+    return rar
 
 
 class Query(object):
@@ -273,7 +271,7 @@ def load_from_text(filepath, shuffle=True, fill_missing=-1):
     querylists = []
     querylist = None
     fn = __initialize_meta_info__()
-    with open(os.path.join(fn, filepath)) as f:
+    with fn.open(os.path.join(fn, filepath)) as f:
         for line in f:
             query = Query()
             query = query._parse_(line)
@@ -330,7 +328,6 @@ def fetch():
 
 
 if __name__ == "__main__":
-    fetch()
     mytest = functools.partial(
         __reader__, filepath="MQ2007/MQ2007/Fold1/sample", format="listwise")
     for label, query in mytest():
