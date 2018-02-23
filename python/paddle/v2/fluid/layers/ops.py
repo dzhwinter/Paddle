@@ -1,4 +1,4 @@
-#   Copyright (c) 2018 PaddlePaddle Authors. All Rights Reserve.
+#   Copyright (c) 2018 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,6 +61,15 @@ __all__ = [
     'clip_by_norm',
     'softmax',
     'sequence_softmax',
+    'logical_and',
+    'logical_or',
+    'logical_xor',
+    'logical_not',
+    'uniform_random',
+    'uniform_random_batch_size_like',
+    'gaussian_random',
+    'gaussian_random_batch_size_like',
+    'cumsum',
 ] + __activations__
 
 for _OP in set(__all__):
