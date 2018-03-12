@@ -13,9 +13,26 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 #pragma once
+#include "gflags/gflags.h"
+#include "glog/logging.h"
 #include "paddle/fluid/memory/memcpy.h"
 #include "paddle/fluid/platform/enforce.h"
 #include "paddle/fluid/platform/float16.h"
+#include "paddle/fluid/platform/profiler.h"
+
+#include <atomic>
+#include <mutex>
+#include <string>
+
+DECLARE_bool(benchmark);
+// DEFINE_bool(benchmark, false,
+//             "Doing memory benchmark. It will make deleting scope
+//             synchronized, "
+//             "and add some memory usage logs."
+//             "Default cuda is asynchronous device, set to True will"
+//             "force op run in synchronous mode.");
+std::mutex mu;
+static std::atomic<int> global_counter(0);
 
 namespace paddle {
 namespace framework {
@@ -138,6 +155,15 @@ inline void* Tensor::mutable_data(platform::Place place, std::type_index type) {
     }
 #endif
     offset_ = 0;
+  }
+
+  if (FLAGS_benchmark) {
+    platform::DeviceContextPool& pool = platform::DeviceContextPool::Instance();
+    std::unique_lock<std::mutex> lock(mu);
+    global_counter.fetch_add(1);
+    lock.unlock();
+    platform::RecordEvent record_event(std::to_string(global_counter),
+                                       pool.Get(place));
   }
   return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(holder_->ptr()) +
                                  offset_);
