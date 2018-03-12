@@ -41,6 +41,16 @@ class ElementwiseOp : public framework::OperatorWithKernel {
   }
 };
 
+class ElementwiseOpInferVarType : public framework::VarTypeInference {
+ public:
+  void operator()(const framework::OpDesc& op_desc,
+                  framework::BlockDesc* block) const override {
+    auto x_var = op_desc.Input("X")[0];
+    auto out_var = op_desc.Output("Out")[0];
+    block->Var(out_var)->SetType(block->Var(x_var)->GetType());
+  }
+};
+
 class ElementwiseOpMaker : public framework::OpProtoAndCheckerMaker {
  public:
   ElementwiseOpMaker(OpProto* proto, OpAttrChecker* op_checker)
@@ -65,11 +75,16 @@ smaller than or equal to the dimensions of $X$.
 
 There are two cases for this operator:
 1. The shape of $Y$ is same with $X$;
-2. The shape of $Y$ is a subset of $X$.
+2. The shape of $Y$ is a congiguous subsequencet of $X$. The trailing dimensions
+   of size 1 for $Y$ will be ignored for the consideration of subsequence.
+
 
 For case 2:
+
 $Y$ will be broadcasted to match the shape of $X$ and axis should be
 set to index of the start dimension to broadcast $Y$ onto $X$.
+
+If axis is -1, it is treated as axis=rank(X)-rank(Y).
 
 For example
   .. code-block:: python
@@ -79,6 +94,7 @@ For example
     shape(X) = (2, 3, 4, 5), shape(Y) = (4, 5)
     shape(X) = (2, 3, 4, 5), shape(Y) = (3, 4), with axis=1
     shape(X) = (2, 3, 4, 5), shape(Y) = (2), with axis=0
+    shape(X) = (2, 3, 4, 5), shape(Y) = (2, 1), with axis=0
 
 Either of the inputs $X$ and $Y$ or none can carry the LoD (Level of Details)
 information. However, the output only shares the LoD information with input $X$.

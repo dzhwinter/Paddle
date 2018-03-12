@@ -67,6 +67,14 @@ class PriorBoxOp : public framework::OperatorWithKernel {
     ctx->SetOutputDim("Boxes", framework::make_ddim(dim_vec));
     ctx->SetOutputDim("Variances", framework::make_ddim(dim_vec));
   }
+
+ protected:
+  framework::OpKernelType GetExpectedKernelType(
+      const framework::ExecutionContext& ctx) const override {
+    return framework::OpKernelType(
+        framework::ToDataType(ctx.Input<framework::Tensor>("Input")->type()),
+        platform::CPUPlace());
+  }
 };
 
 class PriorBoxOpMaker : public framework::OpProtoAndCheckerMaker {
@@ -103,7 +111,8 @@ class PriorBoxOpMaker : public framework::OpProtoAndCheckerMaker {
         });
     AddAttr<std::vector<float>>(
         "max_sizes",
-        "(vector<float>) List of max sizes of generated prior boxes.");
+        "(vector<float>) List of max sizes of generated prior boxes.")
+        .SetDefault(std::vector<float>{});
     AddAttr<std::vector<float>>(
         "aspect_ratios",
         "(vector<float>) List of aspect ratios of generated prior boxes.");

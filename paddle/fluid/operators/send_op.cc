@@ -24,15 +24,15 @@ limitations under the License. */
 
 namespace paddle {
 namespace operators {
-static bool IsVariableInitialized(const framework::Scope& scope,
-                                  const std::string& varname) {
+static bool NeedSend(const framework::Scope& scope,
+                     const std::string& varname) {
   auto* var = scope.FindVar(varname);
   PADDLE_ENFORCE_NOT_NULL(var, "Can not find variable '%s' in the send side.",
                           varname);
   if (var->IsType<framework::LoDTensor>()) {
     return var->Get<framework::LoDTensor>().IsInitialized();
   } else if (var->IsType<framework::SelectedRows>()) {
-    return var->Get<framework::SelectedRows>().value().IsInitialized();
+    return var->Get<framework::SelectedRows>().rows().size() > 0UL;
   } else {
     PADDLE_THROW(
         "Variable type in send side should be in "
@@ -67,7 +67,7 @@ class SendOp : public framework::OperatorBase {
     detail::RPCClient* rpc_client = client_var->GetMutable<detail::RPCClient>();
 
     for (size_t i = 0; i < ins.size(); i++) {
-      if (IsVariableInitialized(scope, ins[i])) {
+      if (NeedSend(scope, ins[i])) {
         VLOG(3) << "sending " << ins[i] << " to " << epmap[i];
         rpc_client->AsyncSendVariable(epmap[i], ctx, scope, ins[i]);
       } else {
@@ -121,9 +121,27 @@ This operator will send tensor to recv_op at the parameter server.
   }
 };
 
+class SendOpVarTypeInference : public framework::VarTypeInference {
+ public:
+  void operator()(const framework::OpDesc& op_desc,
+                  framework::BlockDesc* block) const override {
+    auto out_var_name = op_desc.Output("RPCClient").front();
+    auto& out_var = block->FindRecursiveOrCreateVar(out_var_name);
+    auto var_type = framework::proto::VarType::RAW;
+    out_var.SetType(var_type);
+  }
+};
+
+class SendOpShapeInference : public framework::InferShapeBase {
+ public:
+  void operator()(framework::InferShapeContext* ctx) const override {}
+};
+
 }  // namespace operators
 }  // namespace paddle
 
 namespace ops = paddle::operators;
 
-REGISTER_OPERATOR(send, ops::SendOp, ops::SendOpMaker);
+REGISTER_OPERATOR(send, ops::SendOp, paddle::framework::EmptyGradOpMaker,
+                  ops::SendOpMaker, ops::SendOpVarTypeInference,
+                  ops::SendOpShapeInference);
