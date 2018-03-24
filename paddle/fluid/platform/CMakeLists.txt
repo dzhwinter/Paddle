@@ -45,13 +45,11 @@ ENDIF()
 cc_library(device_context SRCS device_context.cc DEPS memory buddy_allocator
     system_allocator memory_block meta_data meta_cache place eigen3 ${GPU_CTX_DEPS} ${MKLDNN_CTX_DEPS})
 nv_test(device_context_test SRCS device_context_test.cu DEPS device_context gpu_info)
-
 nv_test(cudnn_helper_test SRCS cudnn_helper_test.cc DEPS dynload_cuda)
 nv_test(transform_test SRCS transform_test.cu DEPS paddle_memory place device_context)
-
 cc_library(device_tracer SRCS device_tracer.cc DEPS profiler_proto ${GPU_CTX_DEPS})
 cc_library(profiler SRCS profiler.cc DEPS device_context device_tracer)
 cc_test(profiler_test SRCS profiler_test.cc DEPS profiler)
-
 nv_test(float16_gpu_test SRCS float16_test.cu)
 cc_test(float16_test SRCS float16_test.cc)
+nv_test(cuda_helper_test SRCS cuda_helper_test.cu DEPS dynload_cuda)
