@@ -380,8 +380,12 @@ REGISTER_OPERATOR(conv2d, ops::ConvOp, ops::Conv2DOpMaker,
 REGISTER_OPERATOR(conv2d_grad, ops::ConvOpGrad);
 
 // depthwise convolution op
-REGISTER_OP(depthwise_conv2d, ops::ConvOp, ops::Conv2DOpMaker,
-            depthwise_conv2d_grad, ops::ConvOpGrad);
+REGISTER_OPERATOR(depthwise_conv2d, ops::ConvOp, ops::Conv2DOpMaker,
+                  ops::Conv2DGradMaker);
+REGISTER_OPERATOR(depthwise_conv2d_grad, ops::ConvOpGrad);
+
+// REGISTER_OP(depthwise_conv2d, ops::ConvOp, ops::Conv2DOpMaker,
+//             depthwise_conv2d_grad, ops::ConvOpGrad);
 REGISTER_OP(conv3d, ops::ConvOp, ops::Conv3DOpMaker, conv3d_grad,
             ops::ConvOpGrad);
 
