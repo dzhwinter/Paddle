@@ -178,15 +178,20 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
     auto output_grad = ctx.Input<Tensor>(framework::GradVarName("Output"));
     auto input_grad = ctx.Output<Tensor>(framework::GradVarName("Input"));
     auto filter_grad = ctx.Output<Tensor>(framework::GradVarName("Filter"));
-#if 0
+// #if 0
     // This block is commented out since it triggers assertion.
     auto* alg    = ctx.Input<Tensor>("Algorithm");
     auto* algOut = ctx.Output<Tensor>("AlgorithmOut");
-    if (alg == nullptr || algOut == nullptr)
-    {
-      VLOG(3) << "GradOp alg: " << alg << " algOut : " << algOut;
-    }
-#endif
+
+    VLOG(3) << "get alg ptr: " << alg << " alg_out ptr: " << algOut;
+    VLOG(3) << "Input: " << alg->data<int>()
+            << " Output: " << algOut->mutable_data<int>(ctx.GetPlace());
+    Tensor alg_tmp;
+    alg_tmp.mutable_data<int>(alg->dims(), platform::CPUPlace());
+    framework::TensorCopy(*alg, platform::CPUPlace(), &alg_tmp);
+    int pre_data_alg = (alg_tmp.data<int>())[0];
+    int pre_filter_alg = (alg_tmp.data<int>())[1];
+// #endif
 
     const T* input_data = input->data<T>();
     const T* output_grad_data = output_grad->data<T>();
@@ -299,15 +304,24 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
       T* input_grad_data = input_grad->mutable_data<T>(ctx.GetPlace());
       // Because beta is zero, it is unnecessary to reset input_grad.
 
-      for (int i = 0; i < groups; i++) {
+      if (pre_data_alg == 0) {
         PADDLE_ENFORCE(
-            platform::dynload::miopenFindConvolutionBackwardDataAlgorithm(
-                handle, cudnn_output_grad_desc,
-                output_grad_data + i * group_offset_out, cudnn_filter_desc,
-                filter_data + i * group_offset_filter, cudnn_conv_desc,
-                cudnn_input_desc, input_grad_data + i * group_offset_in, 1,
-                &algoCount, &perfRes, cudnn_workspace, workspace_size_in_bytes,
-                false));
+                       platform::dynload::miopenFindConvolutionBackwardDataAlgorithm(
+                                                                                     handle, cudnn_output_grad_desc,
+                                                                                     output_grad_data + i * group_offset_out, cudnn_filter_desc,
+                                                                                     filter_data + i * group_offset_filter, cudnn_conv_desc,
+                                                                                     cudnn_input_desc, input_grad_data + i * group_offset_in, 1,
+                                                                                     &algoCount, &perfRes, cudnn_workspace, workspace_size_in_bytes,
+                                                                                     false));
+        (alg_tmp.data<int>())[0] = (int)(perfRes.bwd_data_algo) + 1;
+        VLOG(3) << "Find Kernel: store " << (alg_tmp.data<int>())
+                << " kernel :" << perfRes.bwd_data_algo;
+      } else {
+        perfRes.bwd_data_algo = (miopenConvFwdAlgorithm_t)(pre_data_alg - 1);
+        VLOG(3) << "Find Kernel:  load  " << (alg_tmp.data<int>())[0]
+                << " kernel :" << perfRes.bwd_data_algo;
+      }
+      for (int i = 0; i < groups; i++) {
         PADDLE_ENFORCE(platform::dynload::miopenConvolutionBackwardData(
             handle, &alpha, cudnn_output_grad_desc,
             output_grad_data + i * group_offset_out, cudnn_filter_desc,
@@ -321,15 +335,24 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
     if (filter_grad) {
       T* filter_grad_data = filter_grad->mutable_data<T>(ctx.GetPlace());
       // Because beta is zero, it is unnecessary to reset filter_grad.
-      for (int i = 0; i < groups; i++) {
+      if (pre_filter_alg == 0) {
         PADDLE_ENFORCE(
-            platform::dynload::miopenFindConvolutionBackwardWeightsAlgorithm(
-                handle, cudnn_output_grad_desc,
-                output_grad_data + i * group_offset_out, cudnn_input_desc,
-                input_data + i * group_offset_in, cudnn_conv_desc,
-                cudnn_filter_desc, filter_grad_data + i * group_offset_filter,
-                1, &algoCount, &perfRes, cudnn_workspace,
-                workspace_size_in_bytes, false));
+                       platform::dynload::miopenFindConvolutionBackwardWeightsAlgorithm(
+                                                                                        handle, cudnn_output_grad_desc,
+                                                                                        output_grad_data + i * group_offset_out, cudnn_input_desc,
+                                                                                        input_data + i * group_offset_in, cudnn_conv_desc,
+                                                                                        cudnn_filter_desc, filter_grad_data + i * group_offset_filter,
+                                                                                        1, &algoCount, &perfRes, cudnn_workspace,
+                                                                                        workspace_size_in_bytes, false));
+        (alg_tmp.data<int>())[1] = (int)(perfRes.bwd_weights_algo) + 1;
+        VLOG(3) << "Find Kernel: store " << (alg_tmp.data<int>())
+                << " kernel :" << perfRes.bwd_weights_algo;
+      } else {
+        perfRes.bwd_weights_algo = (miopenConvFwdAlgorithm_t)(pre_filter_alg - 1);
+        VLOG(3) << "Find Kernel:  load  " << (alg_tmp.data<int>())[0]
+                << " kernel :" << perfRes.bwd_weights_algo;
+      }
+      for (int i = 0; i < groups; i++) {
         PADDLE_ENFORCE(platform::dynload::miopenConvolutionBackwardWeights(
             handle, &alpha, cudnn_output_grad_desc,
             output_grad_data + i * group_offset_out, cudnn_input_desc,
@@ -339,8 +362,31 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
             workspace_size_in_bytes));
       }
     }
+    framework::TensorCopy(alg_tmp, ctx.GetPlace(), algOut);
     // Release the cudnn workspace
     paddle::memory::Free(gpu, cudnn_workspace);
+  }
+};
+
+class Conv2DGradMaker : public framework::SingleGradOpDescMaker {
+public:
+  using framework::SingleGradOpDescMaker::SingleGradOpDescMaker;
+protected:
+  std::unique_ptr<framework::OpDesc> Apply() const override {
+    auto *op = new framework::OpDesc();
+    op->SetType("conv2d_grad");
+    op->SetInput("Input", Input("Input"));
+    op->SetInput("Filter", Input("Filter"));
+    op->SetInput("Algorithm", Input("Algorithm"));
+    op->SetInput(framework::GradVarName("Output"), OutputGrad("Output"));
+
+    op->SetAttrMap(Attrs());
+
+    op->SetOutput("AlgorithmOut", Output("AlgorithmOut"));
+    op->SetOutput(framework::GradVarName("Input"), InputGrad("Input"));
+    op->SetOutput(framework::GradVarName("Filter"), InputGrad("Filter"));
+
+    return std::unique_ptr<framework::OpDesc>(op);
   }
 };
 
