@@ -377,6 +377,7 @@ class Conv2DGradMaker : public framework::SingleGradOpDescMaker {
 namespace ops = paddle::operators;
 REGISTER_OPERATOR(conv2d, ops::ConvOp, ops::Conv2DOpMaker,
                   ops::Conv2DGradMaker);
+REGISTER_OPERATOR(conv2d_grad, ops::ConvOpGrad);
 
 // depthwise convolution op
 REGISTER_OP(depthwise_conv2d, ops::ConvOp, ops::Conv2DOpMaker,
