@@ -371,29 +371,6 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
   }
 };
 
-class Conv2DGradMaker : public framework::SingleGradOpDescMaker {
- public:
-  using framework::SingleGradOpDescMaker::SingleGradOpDescMaker;
-
- protected:
-  std::unique_ptr<framework::OpDesc> Apply() const override {
-    auto* op = new framework::OpDesc();
-    op->SetType("conv2d_grad");
-    op->SetInput("Input", Input("Input"));
-    op->SetInput("Filter", Input("Filter"));
-    op->SetInput("Algorithm", Input("Algorithm"));
-    op->SetInput(framework::GradVarName("Output"), OutputGrad("Output"));
-
-    op->SetAttrMap(Attrs());
-
-    op->SetOutput("AlgorithmOut", Output("AlgorithmOut"));
-    op->SetOutput(framework::GradVarName("Input"), InputGrad("Input"));
-    op->SetOutput(framework::GradVarName("Filter"), InputGrad("Filter"));
-
-    return std::unique_ptr<framework::OpDesc>(op);
-  }
-};
-
 }  // namespace operators
 }  // namespace paddle
 

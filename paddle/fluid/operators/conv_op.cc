@@ -129,13 +129,11 @@ Conv2DOpMaker::Conv2DOpMaker(OpProto* proto, OpAttrChecker* op_checker)
            "H is the height of the filter, and W is the width of the filter. "
            "If the groups attribute is greater than 1, C equals the number of "
            "input image channels divided by the groups.");
-  AddInput("Algorithm",
-           "Selected algorithm for conv2d");
+  AddInput("Algorithm", "Selected algorithm for conv2d");
   AddOutput("Output",
             "(Tensor) The output tensor of convolution operator. "
             "The format of output tensor is also NCHW.");
-  AddOutput("AlgorithmOut",
-            "Tuned algorithm for conv2d");
+  AddOutput("AlgorithmOut", "Tuned algorithm for conv2d");
   AddAttr<std::vector<int>>("strides",
                             "(vector<int> default:{1, 1}), the "
                             "strides(h_stride, w_stride) of "
@@ -229,13 +227,11 @@ Conv3DOpMaker::Conv3DOpMaker(OpProto* proto, OpAttrChecker* op_checker)
            "is the width of the filter."
            "If the groups attribute is greater than 1, C equals the number of "
            "input image channels divided by the groups.");
-  AddInput("Algorithm",
-           "Selected algorithm for conv3d");
+  AddInput("Algorithm", "Selected algorithm for conv3d");
   AddOutput("Output",
             "(Tensor) The output tensor of convolution operator."
             "The format of output tensor is also NCDHW.");
-  AddOutput("AlgorithmOut",
-            "Tuned algorithm for conv3d");
+  AddOutput("AlgorithmOut", "Tuned algorithm for conv3d");
   AddAttr<std::vector<int>>("strides",
                             "(vector<int>, default:{1, 1, 1}), the "
                             "strides(d_stride, h_stride, w_stride) of "
@@ -352,12 +348,35 @@ framework::OpKernelType ConvOpGrad::GetExpectedKernelType(
       layout_, library_);
 }
 
+class Conv2DGradMaker : public framework::SingleGradOpDescMaker {
+ public:
+  using framework::SingleGradOpDescMaker::SingleGradOpDescMaker;
+
+ protected:
+  std::unique_ptr<framework::OpDesc> Apply() const override {
+    auto* op = new framework::OpDesc();
+    op->SetType("conv2d_grad");
+    op->SetInput("Input", Input("Input"));
+    op->SetInput("Filter", Input("Filter"));
+    op->SetInput("Algorithm", Input("Algorithm"));
+    op->SetInput(framework::GradVarName("Output"), OutputGrad("Output"));
+
+    op->SetAttrMap(Attrs());
+
+    op->SetOutput("AlgorithmOut", Output("AlgorithmOut"));
+    op->SetOutput(framework::GradVarName("Input"), InputGrad("Input"));
+    op->SetOutput(framework::GradVarName("Filter"), InputGrad("Filter"));
+
+    return std::unique_ptr<framework::OpDesc>(op);
+  }
+};
+
 }  // namespace operators
 }  // namespace paddle
 
 namespace ops = paddle::operators;
-REGISTER_OP(conv2d, ops::ConvOp, ops::Conv2DOpMaker, conv2d_grad,
-            ops::ConvOpGrad);
+REGISTER_OPERATOR(conv2d, ops::ConvOp, ops::Conv2DOpMaker,
+                  ops::Conv2DGradMaker);
 
 // depthwise convolution op
 REGISTER_OP(depthwise_conv2d, ops::ConvOp, ops::Conv2DOpMaker,
