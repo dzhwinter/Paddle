@@ -304,24 +304,25 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
       T* input_grad_data = input_grad->mutable_data<T>(ctx.GetPlace());
       // Because beta is zero, it is unnecessary to reset input_grad.
 
-      if (pre_data_alg == 0) {
-        PADDLE_ENFORCE(
-            platform::dynload::miopenFindConvolutionBackwardDataAlgorithm(
-                handle, cudnn_output_grad_desc,
-                output_grad_data + i * group_offset_out, cudnn_filter_desc,
-                filter_data + i * group_offset_filter, cudnn_conv_desc,
-                cudnn_input_desc, input_grad_data + i * group_offset_in, 1,
-                &algoCount, &perfRes, cudnn_workspace, workspace_size_in_bytes,
-                false));
-        (alg_tmp.data<int>())[0] = (int)(perfRes.bwd_data_algo) + 1;
-        VLOG(3) << "Find Kernel: store " << (alg_tmp.data<int>())
-                << " kernel :" << perfRes.bwd_data_algo;
-      } else {
-        perfRes.bwd_data_algo = (miopenConvFwdAlgorithm_t)(pre_data_alg - 1);
-        VLOG(3) << "Find Kernel:  load  " << (alg_tmp.data<int>())[0]
-                << " kernel :" << perfRes.bwd_data_algo;
-      }
       for (int i = 0; i < groups; i++) {
+        if (pre_data_alg == 0) {
+          PADDLE_ENFORCE(
+              platform::dynload::miopenFindConvolutionBackwardDataAlgorithm(
+                  handle, cudnn_output_grad_desc,
+                  output_grad_data + i * group_offset_out, cudnn_filter_desc,
+                  filter_data + i * group_offset_filter, cudnn_conv_desc,
+                  cudnn_input_desc, input_grad_data + i * group_offset_in, 1,
+                  &algoCount, &perfRes, cudnn_workspace,
+                  workspace_size_in_bytes, false));
+          (alg_tmp.data<int>())[0] = (int)(perfRes.bwd_data_algo) + 1;
+          VLOG(3) << "Find Kernel: store " << (alg_tmp.data<int>())
+                  << " kernel :" << perfRes.bwd_data_algo;
+        } else {
+          perfRes.bwd_data_algo =
+              (miopenConvBwdDataAlgorithm_t)(pre_data_alg - 1);
+          VLOG(3) << "Find Kernel:  load  " << (alg_tmp.data<int>())[0]
+                  << " kernel :" << perfRes.bwd_data_algo;
+        }
         PADDLE_ENFORCE(platform::dynload::miopenConvolutionBackwardData(
             handle, &alpha, cudnn_output_grad_desc,
             output_grad_data + i * group_offset_out, cudnn_filter_desc,
@@ -336,25 +337,25 @@ class CUDNNConvGradOpKernel : public framework::OpKernel<T> {
       T* filter_grad_data = filter_grad->mutable_data<T>(ctx.GetPlace());
 
       // Because beta is zero, it is unnecessary to reset filter_grad.
-      if (pre_filter_alg == 0) {
-        PADDLE_ENFORCE(
-            platform::dynload::miopenFindConvolutionBackwardWeightsAlgorithm(
-                handle, cudnn_output_grad_desc,
-                output_grad_data + i * group_offset_out, cudnn_input_desc,
-                input_data + i * group_offset_in, cudnn_conv_desc,
-                cudnn_filter_desc, filter_grad_data + i * group_offset_filter,
-                1, &algoCount, &perfRes, cudnn_workspace,
-                workspace_size_in_bytes, false));
-        (alg_tmp.data<int>())[1] = (int)(perfRes.bwd_weights_algo) + 1;
-        VLOG(3) << "Find Kernel: store " << (alg_tmp.data<int>())
-                << " kernel :" << perfRes.bwd_weights_algo;
-      } else {
-        perfRes.bwd_weights_algo =
-            (miopenConvFwdAlgorithm_t)(pre_filter_alg - 1);
-        VLOG(3) << "Find Kernel:  load  " << (alg_tmp.data<int>())[0]
-                << " kernel :" << perfRes.bwd_weights_algo;
-      }
       for (int i = 0; i < groups; i++) {
+        if (pre_filter_alg == 0) {
+          PADDLE_ENFORCE(
+              platform::dynload::miopenFindConvolutionBackwardWeightsAlgorithm(
+                  handle, cudnn_output_grad_desc,
+                  output_grad_data + i * group_offset_out, cudnn_input_desc,
+                  input_data + i * group_offset_in, cudnn_conv_desc,
+                  cudnn_filter_desc, filter_grad_data + i * group_offset_filter,
+                  1, &algoCount, &perfRes, cudnn_workspace,
+                  workspace_size_in_bytes, false));
+          (alg_tmp.data<int>())[1] = (int)(perfRes.bwd_weights_algo) + 1;
+          VLOG(3) << "Find Kernel: store " << (alg_tmp.data<int>())
+                  << " kernel :" << perfRes.bwd_weights_algo;
+        } else {
+          perfRes.bwd_weights_algo =
+              (miopenConvBwdWeightsAlgorithm_t)(pre_filter_alg - 1);
+          VLOG(3) << "Find Kernel:  load  " << (alg_tmp.data<int>())[0]
+                  << " kernel :" << perfRes.bwd_weights_algo;
+        }
         PADDLE_ENFORCE(platform::dynload::miopenConvolutionBackwardWeights(
             handle, &alpha, cudnn_output_grad_desc,
             output_grad_data + i * group_offset_out, cudnn_input_desc,
